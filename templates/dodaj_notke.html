@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="formbox">
+<h1>Dodaj notkę</h1>
+
+<form method="POST" class="mt-4">
+     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+     <div class="mb-3">
+    <label for="tresc" class="form-label">Treść notki:</label>
+    <textarea class="form-control" id="tresc" name="tresc" rows="4" maxlength="350" required></textarea>
+    <div id="trescHelp" class="form-text">
+      Max 350 znaków. Notka jest wpisem bez zdjęcia.
+    </div>
+    </div>
+    <hr class="my-4">
+    <button type="submit" class="btn-custom primary">Dodaj notkę</button>
+</form>
+</div>
+{% endblock %}

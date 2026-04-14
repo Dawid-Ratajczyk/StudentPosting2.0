@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="section-title">Posty użytkownika {{ user.nazwa_uzytkownika }}</h2>
+{% if posty %}
+<div class="posts-grid">
+    {% for post in posty %}
+    <article class="post zoomable-post {% if post.img %}has-image{% else %}no-image{% endif %}" tabindex="0" role="button">
+        <div class="post_autor">
+            <strong>{{ post.autor.nazwa_uzytkownika }}</strong>
+            {% if post.location %}
+                <span> - {{ post.location }}</span>
+            {% endif %}
+        </div>
+        <div class="post_tresc">{{ post.tresc }}</div>
+        {% if post.img %}
+            <div class="post_img_wrap post_media_slot">
+                <img src="/picture/{{ post.id }}" alt="Obraz posta" class="post_img">
+            </div>
+        {% endif %}
+        {% if post.img %}
+        <div class="post_opinia" style="display:block;">
+            <strong>Opinia studenta:</strong> {{ opisy.get(post.id, "Brak opinii") }}
+        </div>
+        {% endif %}
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<p>Ten użytkownik nie dodał jeszcze wpisów.</p>
+{% endif %}
+{% endblock %}

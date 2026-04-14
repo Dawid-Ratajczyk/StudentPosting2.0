@@ -1,0 +1,16 @@
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+/instance/data.db
+/utils/*
+.ebextensions/change_upload_size.config
+/.idea/aws.xml
+/__pycache__/
+/aws-elastic-beanstalk-cli-setup/
+/instance/data.db
+instance/data.db
+instance/desc.db
+.env
+app.log

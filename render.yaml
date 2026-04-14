@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: student-posting-flask
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: OPEN_AI_KEY_STUDENT
+        sync: false
+      - key: DATABASE_PATH
+        value: /var/data/data.db
+      - key: DESC_DATABASE_PATH
+        value: /var/data/desc.db
+    disk:
+      name: student-posting-disk
+      mountPath: /var/data
+      sizeGB: 1

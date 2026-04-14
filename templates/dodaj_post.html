@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="formbox">
+<h1>Dodaj nowy post</h1>
+
+<form method="POST" enctype="multipart/form-data" class="mt-4">
+     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+     <div class="mb-3">
+    <label for="tresc" class="form-label">Treść:</label>
+    <textarea class="form-control" id="tresc" name="tresc" rows="3" maxlength="80" required></textarea>
+    <div id="trescHelp" class="form-text">
+      Max 80 znaków. Post musi zawierać zdjęcie.
+    </div>
+    </div>
+
+     <div class="mb-3">
+         <label for="file" class="form-label">Zdjęcie</label>
+         <input class="form-control" type="file" id="file" name="file" required>
+     </div>
+     <div class="mb-3">
+         <label for="location" class="form-label">Lokacja (opcjonalnie)</label>
+         <input class="form-control" type="text" id="location" name="location" maxlength="80" placeholder="np. Warszawa, Mokotow">
+     </div>
+    <hr class="my-4">
+    <button type="submit" class="btn-custom primary">Dodaj</button>
+</form>
+</div>
+{% endblock %}
+

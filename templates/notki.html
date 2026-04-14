@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="section-title">Notki studenckie</h2>
+{% if posty %}
+<div class="posts-grid">
+    {% for post in posty %}
+    <article class="post">
+        <div class="post_autor">
+            <a href="{{ url_for('posty_uzytkownika', nazwa_uzytkownika=post.autor.nazwa_uzytkownika) }}" class="author-link"><strong>{{ post.autor.nazwa_uzytkownika }}</strong></a>
+        </div>
+        <div class="post_tresc">{{ post.tresc }}</div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<p>Brak notek. Dodaj pierwszą notkę tekstową.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="formbox">
+<h1>Rejestracja</h1>
+<form method="POST" class="mt-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="mb-3">
+    <label for="nazwa_uzytkownika" class="form-label">Nazwa</label>
+    <input type="text" class="form-control" id="nazwa_uzytkownika" name="nazwa_uzytkownika" required>
+  </div>
+
+  <div class="mb-3">
+    <label for="haslo" class="form-label">Hasło</label>
+    <input type="password" class="form-control" id="haslo" name="haslo" required>
+  </div>
+
+  <button type="submit" class="btn-custom primary">Zarejestruj</button>
+</form>
+</div>
+{% endblock %}
