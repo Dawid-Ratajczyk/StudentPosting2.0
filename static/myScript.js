@@ -1,4 +1,17 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const forms = document.querySelectorAll("form");
+  forms.forEach((form) => {
+    form.addEventListener("submit", () => {
+      const submitButton = form.querySelector("button[type='submit']");
+      if (!submitButton) {
+        return;
+      }
+      submitButton.dataset.originalText = submitButton.textContent;
+      submitButton.textContent = "Wysyłanie...";
+      submitButton.disabled = true;
+    });
+  });
+
   const imageWrappers = document.querySelectorAll(".post_img_wrap");
   imageWrappers.forEach((wrapper) => {
     wrapper.addEventListener("click", (event) => {

@@ -1,11 +1,14 @@
 import base64
+import hashlib
 import io
 import logging
 import os
 import secrets
+import time
+from threading import Thread
 from base64 import b64encode
 
-from PIL import Image
+from PIL import Image, ImageOps
 from dotenv import load_dotenv
 from flask import (
     Flask,
@@ -18,6 +21,7 @@ from flask import (
     flash,
     send_from_directory,
     abort,
+    jsonify,
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
@@ -79,6 +83,8 @@ app.config["SQLALCHEMY_BINDS"] = {
 }
 db = SQLAlchemy(app)
 API_SECURITY_TOKEN = "foobar"
+ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
+MAX_IMAGE_PIXELS = 20_000_000
 
 
 class Uzytkownik(db.Model):
@@ -114,6 +120,42 @@ class Desc(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     post_id = db.Column(db.Integer)
     desc = db.Column(db.Text(200))
+
+
+def validate_image_blob(blob_data):
+    if not blob_data:
+        return False, "Pusty plik"
+    try:
+        image = Image.open(io.BytesIO(blob_data))
+        image.verify()
+        image = Image.open(io.BytesIO(blob_data))
+        image.load()
+        image_format = (image.format or "").upper()
+        if image_format not in ALLOWED_IMAGE_FORMATS:
+            return False, "Niedozwolony format obrazu"
+        width, height = image.size
+        if width * height > MAX_IMAGE_PIXELS:
+            return False, "Obraz ma za duzą rozdzielczość"
+    except Exception:
+        return False, "Plik nie jest poprawnym obrazem"
+    return True, None
+
+
+def enqueue_ai_description(post_id, text, image_blob=None):
+    def worker():
+        with app.app_context():
+            try:
+                if Desc.query.filter_by(post_id=post_id).first():
+                    return
+                encoded_img = base64.b64encode(image_blob).decode() if image_blob else None
+                ai_desc = prompt_img(encoded_img, text, app.logger)
+                if ai_desc:
+                    db.session.add(Desc(post_id=post_id, desc=ai_desc))
+                    db.session.commit()
+            except Exception as exc:
+                app.logger.exception(exc)
+
+    Thread(target=worker, daemon=True).start()
 
 
 with app.app_context():
@@ -244,26 +286,10 @@ def description_update():
     existing_post_ids = {
         post_id for (post_id,) in db.session.query(Desc.post_id).filter(Desc.post_id.isnot(None))
     }
-    pending_descs = []
     for post_id, image_blob, text in db.session.query(Post.id, Post.img, Post.tresc):
         if post_id in existing_post_ids:
             continue
-        app.logger.info(f"Making post description id {post_id}")
-        ai_desc = prompt_img(
-            base64.b64encode(image_blob).decode() if image_blob else None,
-            text,
-            app.logger,
-        )
-        pending_descs.append(
-            Desc(
-                post_id=post_id,
-                desc=ai_desc,
-            )
-        )
-    valid_descs = [desc for desc in pending_descs if desc.desc]
-    if valid_descs:
-        db.session.add_all(valid_descs)
-        db.session.commit()
+        enqueue_ai_description(post_id, text, image_blob)
 
 
 @app.route("/api/post", methods=["GET"])  # Api for getting all the posts as json
@@ -272,8 +298,47 @@ def all_posts():
     #   abort(401, "No auth header")
     # if request.headers['Authentication'] != API_SECURITY_TOKEN:
     #    abort(401, "Invalid token")
-    result = Post.query.all()
-    return [x.toDict() for x in result]
+    post_type = request.args.get("type", "all")
+    user = request.args.get("user")
+    page = max(request.args.get("page", default=1, type=int), 1)
+    per_page = min(max(request.args.get("per_page", default=20, type=int), 1), 100)
+
+    query = Post.query
+    if post_type == "image":
+        query = query.filter(Post.img.isnot(None))
+    elif post_type == "text":
+        query = query.filter(Post.img.is_(None))
+
+    if user:
+        user_obj = Uzytkownik.query.filter_by(nazwa_uzytkownika=user).first()
+        if not user_obj:
+            return jsonify({"items": [], "meta": {"page": page, "per_page": per_page, "total": 0}})
+        query = query.filter(Post.autor_id == user_obj.id)
+
+    pagination = query.order_by(Post.id.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    opisy = {
+        d.post_id: d.desc
+        for d in Desc.query.filter(Desc.post_id.in_([p.id for p in pagination.items])).all()
+    }
+    items = []
+    for post in pagination.items:
+        payload = post.toDict()
+        payload["autor"] = post.autor.nazwa_uzytkownika if post.autor else None
+        payload["opinia"] = opisy.get(post.id)
+        items.append(payload)
+    return jsonify(
+        {
+            "items": items,
+            "meta": {
+                "page": page,
+                "per_page": per_page,
+                "total": pagination.total,
+                "pages": pagination.pages,
+            },
+        }
+    )
 
 
 @app.route("/dodaj_post", methods=["GET", "POST"])  # Dodawanie postow
@@ -296,6 +361,10 @@ def dodaj_post():
         raw_picture = uploaded_file.stream.read()
         if raw_picture:
             try:
+                is_valid, validation_error = validate_image_blob(raw_picture)
+                if not is_valid:
+                    flash(message=validation_error, category="warning")
+                    return redirect(url_for("dodaj_post"))
                 picture = force_resize_blob(raw_picture, 900, 900)
                 picture_type = uploaded_file.content_type
             except Exception as exc:
@@ -305,6 +374,19 @@ def dodaj_post():
         if not picture:
             flash(message="Dodaj poprawne zdjęcie", category="warning")
             return redirect(url_for("dodaj_post"))
+
+        # Prevent rapid duplicate submissions (common on mobile multi-tap).
+        picture_hash = hashlib.sha256(picture).hexdigest()
+        dedupe_key = f"{session['uzytkownik']}|{tresc}|{location or ''}|{picture_hash}"
+        last_key = session.get("last_post_key")
+        last_ts = session.get("last_post_ts", 0)
+        now_ts = time.time()
+        if last_key == dedupe_key and (now_ts - float(last_ts)) < 10:
+            flash(message="Ten post został już dodany chwilę temu", category="warning")
+            return redirect(url_for("index"))
+        session["last_post_key"] = dedupe_key
+        session["last_post_ts"] = now_ts
+
         uzytkownik = Uzytkownik.query.filter_by(
             nazwa_uzytkownika=session["uzytkownik"]
         ).first()
@@ -320,21 +402,13 @@ def dodaj_post():
         db.session.add(nowy_post)
         db.session.commit()
 
-        # Optionally create AI description
-        try:
-            ai_desc = prompt_img(base64.b64encode(picture).decode(), tresc, app.logger)
-            if ai_desc:
-                nowy_desc = Desc(
-                    post_id=nowy_post.id,
-                    desc=ai_desc,
-                )
-                db.session.add(nowy_desc)
-        except Exception as e:
-            app.logger.exception(e)
+        enqueue_ai_description(nowy_post.id, tresc, picture)
 
         app.logger.info(f"Adding post by: {uzytkownik}")
-        db.session.commit()
-        flash(message="Dodano Post", category="success")
+        flash(
+            message="Dodano Post. Opinia studenta wygeneruje się za chwilę.",
+            category="success",
+        )
         return redirect(url_for("index"))
 
     return render_template("dodaj_post.html")
@@ -357,14 +431,8 @@ def dodaj_notke():
         )
         db.session.add(nowy_post)
         db.session.commit()
-        try:
-            ai_desc = prompt_img(None, tresc, app.logger)
-            if ai_desc:
-                db.session.add(Desc(post_id=nowy_post.id, desc=ai_desc))
-                db.session.commit()
-        except Exception as e:
-            app.logger.exception(e)
-        flash(message="Dodano notkę", category="success")
+        enqueue_ai_description(nowy_post.id, tresc)
+        flash(message="Dodano notkę. Opinia studenta wygeneruje się za chwilę.", category="success")
         return redirect(url_for("notki"))
     return render_template("dodaj_notke.html")
 
@@ -421,6 +489,8 @@ def force_resize_blob(
     target_height,
 ):
     image = Image.open(io.BytesIO(blob_data))
+    # Respect iPhone EXIF orientation before resizing.
+    image = ImageOps.exif_transpose(image)
     resized_image = image.resize(
         (target_width, target_height),
     )
