@@ -1,4 +1,16 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const imageWrappers = document.querySelectorAll(".post_img_wrap");
+  imageWrappers.forEach((wrapper) => {
+    wrapper.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const post = wrapper.closest(".post");
+      if (post) {
+        post.classList.toggle("image-only");
+      }
+    });
+  });
+
   const zoomablePosts = document.querySelectorAll(".zoomable-post");
   if (zoomablePosts.length) {
     const backdrop = document.createElement("div");

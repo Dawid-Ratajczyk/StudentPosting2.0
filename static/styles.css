@@ -263,6 +263,24 @@ a:active {
   display: none;
 }
 
+.post.image-only .post_autor,
+.post.image-only .post_tresc,
+.post.image-only .post_opinia {
+  display: none !important;
+}
+
+.post.image-only .post_media_slot {
+  min-height: 420px;
+  max-height: none;
+  height: 100%;
+}
+
+.post.image-only .post_img_wrap,
+.post.image-only .post_img {
+  height: 100%;
+  max-height: none;
+}
+
 .post_opinia {
   display: block;
   padding: 0.85rem 1rem 1rem;
@@ -448,6 +466,10 @@ body.no-scroll {
   .post_media_slot {
     min-height: 180px;
     max-height: 180px;
+  }
+
+  .post.image-only .post_media_slot {
+    min-height: 260px;
   }
 
   .post_img_wrap::before {
