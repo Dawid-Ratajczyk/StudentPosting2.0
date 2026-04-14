@@ -53,9 +53,13 @@ def ensure_csrf_token():
     return token
 
 
+def current_user_is_admin():
+    return session.get("uzytkownik") == ADMIN_USERNAME
+
+
 @app.context_processor
 def inject_csrf_token():
-    return {"csrf_token": ensure_csrf_token()}
+    return {"csrf_token": ensure_csrf_token(), "is_admin": current_user_is_admin()}
 
 
 @app.before_request
@@ -85,6 +89,7 @@ db = SQLAlchemy(app)
 API_SECURITY_TOKEN = "foobar"
 ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
 MAX_IMAGE_PIXELS = 20_000_000
+ADMIN_USERNAME = "StudentDawid"
 
 
 class Uzytkownik(db.Model):
@@ -462,6 +467,7 @@ def moje_posty():
 
 @app.route("/usun_post/<int:post_id>", methods=["POST"])
 def usun_post(post_id):
+    back_url = request.referrer or url_for("moje_posty")
     if "uzytkownik" not in session:
         return redirect(url_for("logowanie"))
 
@@ -469,15 +475,32 @@ def usun_post(post_id):
         nazwa_uzytkownika=session["uzytkownik"]
     ).first()
     post = Post.query.get_or_404(post_id)
-    if post.autor_id != uzytkownik.id:
+    if post.autor_id != uzytkownik.id and not current_user_is_admin():
         flash(message="Nie możesz usunąć cudzego wpisu", category="warning")
-        return redirect(url_for("moje_posty"))
+        return redirect(back_url)
 
     Desc.query.filter_by(post_id=post.id).delete()
     db.session.delete(post)
     db.session.commit()
     flash(message="Usunięto wpis", category="success")
-    return redirect(url_for("moje_posty"))
+    return redirect(back_url)
+
+
+@app.route("/admin/regeneruj_opis/<int:post_id>", methods=["POST"])
+def regeneruj_opis_admin(post_id):
+    back_url = request.referrer or url_for("index")
+    if "uzytkownik" not in session:
+        return redirect(url_for("logowanie"))
+    if not current_user_is_admin():
+        flash(message="Brak uprawnień administratora", category="warning")
+        return redirect(back_url)
+
+    post = Post.query.get_or_404(post_id)
+    Desc.query.filter_by(post_id=post.id).delete()
+    db.session.commit()
+    enqueue_ai_description(post.id, post.tresc, post.img)
+    flash(message="Uruchomiono regenerację opinii AI dla wpisu", category="success")
+    return redirect(back_url)
 
 
 # Image--------------------------------------------------

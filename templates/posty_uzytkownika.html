@@ -22,6 +22,20 @@
             <strong>Opinia studenta:</strong> {{ opisy.get(post.id, "Brak opinii") }}
         </div>
         {% endif %}
+        {% if is_admin %}
+        <div class="post_opinia" style="display:block;">
+            <form method="POST" action="{{ url_for('regeneruj_opis_admin', post_id=post.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn-custom">Regeneruj AI (admin)</button>
+            </form>
+        </div>
+        <div class="post_opinia" style="display:block;">
+            <form method="POST" action="{{ url_for('usun_post', post_id=post.id) }}" onsubmit="return confirm('Na pewno usunąć ten wpis?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn-custom">Usuń (admin)</button>
+            </form>
+        </div>
+        {% endif %}
     </article>
     {% endfor %}
 </div>
