@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="section-title">Grupy</h2>
+<p class="text-muted mb-4" style="color: var(--muted) !important; font-weight: 600;">
+    Twórz grupy, dołączaj do istniejących i rozmawiaj z innymi studentami na czacie grupowym.
+</p>
+
+{% if 'uzytkownik' not in session %}
+<p style="font-weight: 700;">Aby tworzyć grupy i pisać na czacie, <a href="{{ url_for('logowanie') }}">zaloguj się</a>.</p>
+{% else %}
+<div id="nowa-grupa" class="formbox mb-4">
+    <h3 class="h5 mb-3" style="color: #fff; font-weight: 800;">Nowa grupa</h3>
+    <form method="POST" action="{{ url_for('grupy') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="mb-3">
+            <label class="form-label" for="nazwa_grupy">Nazwa grupy</label>
+            <input class="form-control" id="nazwa_grupy" name="nazwa" maxlength="80" required placeholder="np. Matematyka 1. rok">
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="opis_grupy">Krótki opis (opcjonalnie)</label>
+            <input class="form-control" id="opis_grupy" name="opis" maxlength="300" placeholder="O czym jest grupa">
+        </div>
+        <button type="submit" class="btn-custom primary">Utwórz grupę</button>
+    </form>
+</div>
+{% endif %}
+
+{% if grupy_list %}
+<div class="groups-grid">
+    {% for g in grupy_list %}
+    <article class="group-card">
+        <div class="group-card-head">
+            <h3 class="group-card-title">{{ g.nazwa }}</h3>
+            <span class="group-card-meta">{{ g.liczba_czlonkow() }} członków</span>
+        </div>
+        {% if g.opis %}
+        <p class="group-card-desc">{{ g.opis }}</p>
+        {% endif %}
+        <div class="group-card-actions">
+            {% if 'uzytkownik' not in session %}
+            <a href="{{ url_for('logowanie') }}" class="btn-custom">Zaloguj się</a>
+            {% elif g.id in moje_id_grup %}
+            <a href="{{ url_for('grupa_chat', grupa_id=g.id) }}" class="btn-custom primary">Czat</a>
+            {% else %}
+            <form method="POST" action="{{ url_for('grupa_dolacz', grupa_id=g.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn-custom primary">Dołącz</button>
+            </form>
+            {% endif %}
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<p style="font-weight: 700;">Nikt jeszcze nie utworzył grupy — {% if 'uzytkownik' in session %}bądź pierwszy powyżej.{% else %}zaloguj się i utwórz pierwszą.{% endif %}</p>
+{% endif %}
+{% endblock %}

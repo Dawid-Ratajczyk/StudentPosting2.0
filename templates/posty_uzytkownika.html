@@ -22,7 +22,7 @@
             <strong>Opinia studenta:</strong> {{ opisy.get(post.id, "Brak opinii") }}
         </div>
         {% endif %}
-        {% if is_admin %}
+        {% if is_admin and post.img %}
         <div class="post_opinia" style="display:block;">
             <form method="POST" action="{{ url_for('regeneruj_opis_admin', post_id=post.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

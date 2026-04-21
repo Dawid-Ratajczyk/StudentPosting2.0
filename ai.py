@@ -50,7 +50,7 @@ def create_data_uri(base64_str, image_type="jpeg"):
 def prompt_img(img, tresc, logger):
     api_key = get_api_key()
     #logger.info(f"Running prompt {tresc}")
-    zapytanie = f"Napisz śmieszną reakcje na posta składającego z załączonego zdjęcia i treści:'{tresc}'. Max 150 liter. Wciel sie w młodego studenta i używaj nowoczesnego młodocianego języka i slangu, terminologii brainrot. "
+    zapytanie = f"Napisz śmieszną żartobliwą reakcje na posta składającego z załączonego zdjęcia i treści:'{tresc}'. Max 150 liter. Wciel sie w młodego studenta i używaj nowoczesnego młodocianego języka i slangu, terminologii typu brainrot. "
     url = "https://api.openai.com/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     if img:
