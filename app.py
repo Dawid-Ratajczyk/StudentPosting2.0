@@ -51,6 +51,7 @@ logging.basicConfig(
 
 
 def ensure_csrf_token():
+    """Tworzy lub zwraca token CSRF w sesji (ochrona formularzy POST)."""
     token = session.get("_csrf_token")
     if not token:
         token = secrets.token_urlsafe(32)
@@ -59,16 +60,19 @@ def ensure_csrf_token():
 
 
 def current_user_is_admin():
+    """Sprawdza, czy zalogowany użytkownik ma login administratora."""
     return session.get("uzytkownik") == ADMIN_USERNAME
 
 
 @app.context_processor
 def inject_csrf_token():
+    """Udostępnia w szablonach token CSRF i flagę admina."""
     return {"csrf_token": ensure_csrf_token(), "is_admin": current_user_is_admin()}
 
 
 @app.before_request
 def validate_csrf():
+    """Odrzuca żądania POST bez poprawnego pola csrf_token w formularzu."""
     if request.method != "POST":
         return
     token = session.get("_csrf_token")
@@ -105,7 +109,7 @@ _RATE_BUCKETS: dict[str, deque] = {}
 
 
 def allow_rate_limit(key: str, max_events: int, window_sec: float) -> bool:
-    """Return True if request is allowed; False if rate limit exceeded."""
+    """Limituje częstotliwość zdarzeń: True = akcja dozwolona, False = przekroczony limit (okno czasowe)."""
     now = time.monotonic()
     with _RATE_LOCK:
         dq = _RATE_BUCKETS.setdefault(key, deque())
@@ -118,16 +122,18 @@ def allow_rate_limit(key: str, max_events: int, window_sec: float) -> bool:
 
 
 def rate_limit_client_ip(suffix: str, max_events: int, window_sec: float) -> bool:
+    """Limit po adresie IP (np. logowanie, rejestracja)."""
     ip = request.remote_addr or "unknown"
     return allow_rate_limit(f"{suffix}:{ip}", max_events, window_sec)
 
 
 def rate_limit_user(suffix: str, user_id: int, max_events: int, window_sec: float) -> bool:
+    """Limit po identyfikatorze użytkownika (np. dodawanie postów)."""
     return allow_rate_limit(f"{suffix}:u{user_id}", max_events, window_sec)
 
 
 def safe_log_fragment(value, max_len: int = 120) -> str:
-    """Reduce log injection (newlines / long blobs) from user-controlled strings."""
+    """Skraca i oczyszcza tekst z danych użytkownika przed wpisem do logów (np. uniknięcie wstrzykiwania nowych linii)."""
     if value is None:
         return ""
     s = str(value).replace("\r", " ").replace("\n", " ").strip()
@@ -135,11 +141,13 @@ def safe_log_fragment(value, max_len: int = 120) -> str:
 
 
 def sanitize_printable_line(s: str, max_len: int) -> str:
+    """Zostawia tylko drukowalne znaki, obcina do max_len; pusty wynik zwraca jako None."""
     out = "".join(c for c in (s or "") if c.isprintable() and c not in "\x00\x7f")
     return out.strip()[:max_len] or None
 
 
 def is_safe_redirect_url(url: str) -> bool:
+    """Sprawdza, czy URL przekierowania prowadzi na ten sam host co bieżące żądanie (bezpieczny Referer)."""
     if not url or not url.startswith(("http://", "https://")):
         return False
     try:
@@ -170,6 +178,7 @@ class Post(db.Model):
     location = db.Column(db.String(80))
 
     def toDict(self):
+        """Zwraca słownik pól posta pod API JSON (w tym miniatura obrazu w base64)."""
         return {
             "tresc": self.tresc,
             "id": self.id,
@@ -204,6 +213,7 @@ class Grupa(db.Model):
     )
 
     def liczba_czlonkow(self):
+        """Zwraca liczbę członków grupy."""
         return len(self.czlonkowie_rel)
 
 
@@ -227,6 +237,7 @@ class WiadomoscGrupy(db.Model):
 
 
 def validate_image_blob(blob_data):
+    """Weryfikuje binarny plik obrazu (format, rozmiar w pikselach); zwraca (True, None) lub (False, komunikat)."""
     if not blob_data:
         return False, "Pusty plik"
     try:
@@ -246,7 +257,10 @@ def validate_image_blob(blob_data):
 
 
 def enqueue_ai_description(post_id, text, image_blob=None):
+    """Uruchamia w tle generowanie opisu AI dla posta i zapis w tabeli Desc (jeśli jeszcze brak wpisu)."""
+
     def worker():
+        """Wątek: krótkie opóźnienie, wywołanie API, commit opisu do bazy opisów."""
         with app.app_context():
             try:
                 time.sleep(random.uniform(0, 0.4))
@@ -273,7 +287,10 @@ with app.app_context():
 
 # Site---------------------------------------------------------------
 class IgnoreEndpointFilter(logging.Filter):
+    """Filtr dla loggera werkzeug (mniej szumu w logach dostępu)."""
+
     def filter(self, record):
+        """Zwraca False dla wpisów zawierających ścieżkę /picture — takie linie są pomijane."""
         # record.msg contains request line, e.g. "127.0.0.1 - - [..] "GET /healthz HTTP/1.1" 200 -"
         # You can check against request path here
         return "/picture" not in record.getMessage()
@@ -285,11 +302,13 @@ log.addFilter(IgnoreEndpointFilter())
 
 @app.route("/favicon.ico", methods=["GET"])
 def favicon():
+    """Serwuje ikonę strony (favicon)."""
     return send_file("static/favicon.gif", mimetype="image/ico")
 
 
 @app.after_request
 def add_cache_and_security_headers(response):
+    """Dodaje nagłówki cache dla plików statycznych oraz podstawowe nagłówki bezpieczeństwa (CSP itd.)."""
     if request.path.startswith("/static/"):
         response.headers["Cache-Control"] = "public, max-age=86400"
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -311,6 +330,7 @@ def add_cache_and_security_headers(response):
 
 @app.template_filter("b64encode")
 def base64_encode_filter(data):
+    """Filtr Jinja: koduje bajty obrazu do base64 (string UTF-8) lub zwraca None."""
     if data:
         return b64encode(data).decode("utf-8")
     return None
@@ -318,6 +338,7 @@ def base64_encode_filter(data):
 
 @app.route("/")
 def index():
+    """Strona główna: siatka postów ze zdjęciem wraz z opiniami AI."""
     posty = Post.query.filter(Post.img.isnot(None)).order_by(Post.id.desc()).all()
     opisy = {d.post_id: d.desc for d in Desc.query.order_by(Desc.id.desc()).all()}
 
@@ -326,12 +347,14 @@ def index():
 
 @app.route("/notki")
 def notki():
+    """Lista notek tekstowych (posty bez zdjęcia)."""
     posty = Post.query.filter(Post.img.is_(None)).order_by(Post.id.desc()).all()
     return render_template("notki.html", posty=posty)
 
 
 @app.route("/uzytkownik/<string:nazwa_uzytkownika>")
 def posty_uzytkownika(nazwa_uzytkownika):
+    """Profil użytkownika: wszystkie jego posty z opisami AI."""
     user = Uzytkownik.query.filter_by(nazwa_uzytkownika=nazwa_uzytkownika).first_or_404()
     posty = Post.query.filter_by(autor_id=user.id).order_by(Post.id.desc()).all()
     opisy = {d.post_id: d.desc for d in Desc.query.order_by(Desc.id.desc()).all()}
@@ -340,12 +363,14 @@ def posty_uzytkownika(nazwa_uzytkownika):
 
 @app.route("/styles.css")
 def serve_css():
+    """Serwuje główny arkusz stylów z katalogu static."""
     return send_from_directory("static", "styles.css")
 
 
 # User---------------------------------------------------------------
 @app.route("/rejestracja", methods=["GET", "POST"])
 def rejestracja():
+    """Formularz i obsługa rejestracji nowego użytkownika (walidacja, limit IP, hash hasła)."""
     if request.method == "POST":
         if not rate_limit_client_ip("register", 5, 3600):
             flash(message="Zbyt wiele prób rejestracji z tej sieci. Spróbuj później.", category="warning")
@@ -380,6 +405,7 @@ def rejestracja():
 
 @app.route("/logowanie", methods=["GET", "POST"])
 def logowanie():
+    """Logowanie: weryfikacja hasła, migracja starych haseł plaintext, limit prób z IP."""
     if request.method == "POST":
         if not rate_limit_client_ip("login", 12, 15 * 60):
             flash(message="Zbyt wiele prób logowania. Odczekaj kilkanaście minut.", category="warning")
@@ -414,6 +440,7 @@ def logowanie():
 
 @app.route("/wyloguj")
 def wyloguj():
+    """Kończy sesję użytkownika i przekierowuje na stronę główną."""
     flash(message="Wylogowano", category="success")
     session.pop("uzytkownik", None)
     return redirect(url_for("index"))
@@ -421,6 +448,7 @@ def wyloguj():
 
 # Posty---------------------------------------------------
 def description_update():
+    """Migracja starych wierszy opisu i kolejkowanie brakujących opisów AI dla istniejących postów."""
     legacy_desc_rows = Desc.query.filter(Desc.post_id.is_(None)).all()
     for row in legacy_desc_rows:
         row.post_id = row.id
@@ -438,6 +466,7 @@ def description_update():
 
 @app.route("/api/post", methods=["GET"])  # Api for getting all the posts as json
 def all_posts():
+    """API JSON: paginowana lista postów z filtrem typu (obraz/tekst) i opcjonalnie po użytkowniku."""
     # if 'Authentication' not in request.headers:
     #   abort(401, "No auth header")
     # if request.headers['Authentication'] != API_SECURITY_TOKEN:
@@ -488,6 +517,7 @@ def all_posts():
 
 @app.route("/dodaj_post", methods=["GET", "POST"])  # Dodawanie postow
 def dodaj_post():
+    """Dodawanie posta ze zdjęciem: walidacja, skalowanie, limit częstotliwości, deduplikacja, kolejka AI."""
     if "uzytkownik" not in session:
         return redirect(url_for("logowanie"))
     if request.method == "POST":
@@ -570,6 +600,7 @@ def dodaj_post():
 
 @app.route("/dodaj_notke", methods=["GET", "POST"])
 def dodaj_notke():
+    """Dodawanie notki tekstowej bez obrazu oraz uruchomienie generowania opisu AI."""
     if "uzytkownik" not in session:
         return redirect(url_for("logowanie"))
     if request.method == "POST":
@@ -599,6 +630,7 @@ def dodaj_notke():
 
 @app.route("/picture/<int:post_id>")
 def picture(post_id):
+    """Zwraca plik obrazu posta z bezpiecznym typem MIME (biała lista)."""
     post = Post.query.get_or_404(post_id)
     if not post.img:
         return "", 404
@@ -611,6 +643,7 @@ def picture(post_id):
 
 @app.route("/moje_posty")
 def moje_posty():
+    """Lista postów zalogowanego użytkownika (tylko własne)."""
     if "uzytkownik" not in session:
 
         return redirect(url_for("logowanie"))
@@ -624,12 +657,14 @@ def moje_posty():
 
 
 def uzytkownik_z_sesji():
+    """Zwraca obiekt Uzytkownik dla loginu z sesji lub None, jeśli brak sesji lub nieznany login."""
     if "uzytkownik" not in session:
         return None
     return Uzytkownik.query.filter_by(nazwa_uzytkownika=session["uzytkownik"]).first()
 
 
 def czy_w_grupie(grupa, user):
+    """Sprawdza, czy użytkownik należy do podanej grupy (tabela grupa_czlonek)."""
     if not user:
         return False
     return GrupaCzlonek.query.filter_by(grupa_id=grupa.id, uzytkownik_id=user.id).first() is not None
@@ -637,6 +672,7 @@ def czy_w_grupie(grupa, user):
 
 @app.route("/grupy", methods=["GET", "POST"])
 def grupy():
+    """Lista grup oraz tworzenie nowej grupy (POST); oznacza grupy, do których użytkownik należy."""
     user = uzytkownik_z_sesji()
     if request.method == "POST":
         if not user:
@@ -672,6 +708,7 @@ def grupy():
 
 @app.route("/grupy/<int:grupa_id>", methods=["GET"])
 def grupa_chat(grupa_id):
+    """Widok czatu grupy — tylko dla członków; historia wiadomości i lista członków."""
     grupa = Grupa.query.get_or_404(grupa_id)
     user = uzytkownik_z_sesji()
     if not user or not czy_w_grupie(grupa, user):
@@ -691,6 +728,7 @@ def grupa_chat(grupa_id):
 
 @app.route("/grupy/<int:grupa_id>/dolacz", methods=["POST"])
 def grupa_dolacz(grupa_id):
+    """Dodaje zalogowanego użytkownika jako członka grupy (jeśli jeszcze nie należy)."""
     user = uzytkownik_z_sesji()
     if not user:
         flash(message="Zaloguj się, aby dołączyć do grupy", category="warning")
@@ -707,6 +745,7 @@ def grupa_dolacz(grupa_id):
 
 @app.route("/grupy/<int:grupa_id>/opusc", methods=["POST"])
 def grupa_opusc(grupa_id):
+    """Usuwa użytkownika z grupy; przy braku członków usuwa grupę i wiadomości."""
     user = uzytkownik_z_sesji()
     if not user:
         return redirect(url_for("logowanie"))
@@ -735,6 +774,7 @@ def grupa_opusc(grupa_id):
 
 @app.route("/grupy/<int:grupa_id>/wiadomosc", methods=["POST"])
 def grupa_wiadomosc(grupa_id):
+    """Zapisuje nową wiadomość na czacie grupy (tylko członkowie, limit częstotliwości)."""
     user = uzytkownik_z_sesji()
     if not user:
         return redirect(url_for("logowanie"))
@@ -763,6 +803,7 @@ def grupa_wiadomosc(grupa_id):
 
 @app.route("/grupy/<int:grupa_id>/wiadomosci")
 def grupa_wiadomosci_json(grupa_id):
+    """JSON: wiadomości nowsze niż podany id (`?after=`), do pollingu czatu; tylko członkowie grupy."""
     user = uzytkownik_z_sesji()
     if not user:
         abort(401)
@@ -795,6 +836,7 @@ def grupa_wiadomosci_json(grupa_id):
 
 @app.route("/usun_post/<int:post_id>", methods=["POST"])
 def usun_post(post_id):
+    """Usuwa post autora lub przez admina; usuwa też powiązany opis AI; bezpieczny redirect."""
     ref = request.referrer
     back_url = ref if (ref and is_safe_redirect_url(ref)) else url_for("moje_posty")
     if "uzytkownik" not in session:
@@ -823,6 +865,7 @@ def usun_post(post_id):
 
 @app.route("/admin/regeneruj_opis/<int:post_id>", methods=["POST"])
 def regeneruj_opis_admin(post_id):
+    """Admin: kasuje stary opis AI i ponownie kolejkowuje generowanie dla wskazanego posta."""
     ref = request.referrer
     back_url = ref if (ref and is_safe_redirect_url(ref)) else url_for("index")
     if "uzytkownik" not in session:
@@ -852,6 +895,7 @@ def force_resize_blob(
     target_width,
     target_height,
 ):
+    """Skaluje obraz z pamięci do podanych wymiarów; uwzględnia orientację EXIF; zwraca bajty pliku."""
     image = Image.open(io.BytesIO(blob_data))
     # Respect iPhone EXIF orientation before resizing.
     image = ImageOps.exif_transpose(image)

@@ -97,4 +97,36 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     }
   });
+
+  const topbarToggle = document.getElementById("topbar-menu-toggle");
+  const topbarPanel = document.getElementById("topbar-nav-panel");
+  if (topbarToggle && topbarPanel) {
+    const setOpen = (open) => {
+      topbarPanel.classList.toggle("is-open", open);
+      topbarToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      topbarToggle.textContent = open ? "Zwiń" : "Menu";
+    };
+
+    topbarToggle.addEventListener("click", () => {
+      setOpen(!topbarPanel.classList.contains("is-open"));
+    });
+
+    topbarPanel.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => setOpen(false));
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && topbarPanel.classList.contains("is-open")) {
+        setOpen(false);
+      }
+    });
+
+    const mq = window.matchMedia("(min-width: 769px)");
+    const collapseIfDesktop = () => {
+      if (mq.matches) {
+        setOpen(false);
+      }
+    };
+    mq.addEventListener("change", collapseIfDesktop);
+  }
 });

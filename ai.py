@@ -7,6 +7,7 @@ load_dotenv()
 
 
 def get_api_key():
+    """Zwraca klucz API OpenAI ze zmiennych środowiskowych (kilka możliwych nazw) lub pusty string."""
     # Accept a few common env var names to avoid config mismatches.
     candidates = [
         os.environ.get("OPEN_AI_KEY_STUDENT"),
@@ -20,6 +21,7 @@ def get_api_key():
 
 
 def prompt(content):
+    """Wysyła prosty prompt tekstowy do Chat Completions i wypisuje odpowiedź na stdout (np. do testów lokalnych)."""
     api_key = get_api_key()
     url = "https://api.openai.com/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -44,10 +46,12 @@ def prompt(content):
 
 
 def create_data_uri(base64_str, image_type="jpeg"):
+    """Składa data URI obrazu (np. do osadzenia w JSON API wizji)."""
     return f"data:image/{image_type};base64,{base64_str}"
 
 
 def prompt_img(img, tresc, logger):
+    """Wywołuje model wizji/tekstu OpenAI, by wygenerować krótką „opinię studenta” do posta; zwraca tekst lub None przy błędzie."""
     api_key = get_api_key()
     #logger.info(f"Running prompt {tresc}")
     zapytanie = f"Napisz śmieszną żartobliwą reakcje na posta składającego z załączonego zdjęcia i treści:'{tresc}'. Max 150 liter. Wciel sie w młodego studenta i używaj nowoczesnego młodocianego języka i slangu, terminologii typu brainrot. "
