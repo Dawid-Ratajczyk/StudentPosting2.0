@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2 class="section-title">Grupy</h2>
-<p class="text-muted mb-4" style="color: var(--muted) !important; font-weight: 600;">
+<p class="text-muted mb-4 retro-lead">
     Twórz grupy, dołączaj do istniejących i rozmawiaj z innymi studentami na czacie grupowym.
 </p>
 
@@ -9,7 +9,7 @@
 <p style="font-weight: 700;">Aby tworzyć grupy i pisać na czacie, <a href="{{ url_for('logowanie') }}">zaloguj się</a>.</p>
 {% else %}
 <div id="nowa-grupa" class="formbox mb-4">
-    <h3 class="h5 mb-3" style="color: #fff; font-weight: 800;">Nowa grupa</h3>
+    <h3 class="h5 mb-3 retro-subheading">Nowa grupa</h3>
     <form method="POST" action="{{ url_for('grupy') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="mb-3">

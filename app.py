@@ -318,9 +318,9 @@ def add_cache_and_security_headers(response):
         "Content-Security-Policy",
         "default-src 'self'; "
         "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
-        "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
+        "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
         "img-src 'self' data: blob:; "
-        "font-src 'self' https://cdn.jsdelivr.net data:; "
+        "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com data:; "
         "connect-src 'self'; "
         "base-uri 'self'; "
         "form-action 'self'",
