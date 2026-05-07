@@ -34,14 +34,11 @@
             <div class="nav-actions topbar-nav-panel" id="topbar-nav-panel">
                 <a href="{{ url_for('index') }}" class="btn-custom">Posty</a>
                 <a href="{{ url_for('notki') }}" class="btn-custom">Notki</a>
-                <a href="{{ url_for('grupy') }}" class="btn-custom">Grupy</a>
                 {% if 'uzytkownik' in session %}
                     {% if request.endpoint in ['index', 'dodaj_post'] %}
                         <a href="{{ url_for('dodaj_post') }}" class="btn-custom primary">Dodaj post</a>
                     {% elif request.endpoint in ['notki', 'dodaj_notke'] %}
                         <a href="{{ url_for('dodaj_notke') }}" class="btn-custom primary">Dodaj notkę</a>
-                    {% elif request.endpoint in ['grupy', 'grupa_chat'] %}
-                        <a href="{{ url_for('grupy') }}#nowa-grupa" class="btn-custom primary">Nowa grupa</a>
                     {% endif %}
                     <a href="{{ url_for('moje_posty') }}" class="btn-custom">Moje posty</a>
                     <a href="{{ url_for('wyloguj') }}" class="btn-custom">Wylogowanie</a>
